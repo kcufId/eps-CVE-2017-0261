@@ -1,0 +1,13 @@
+NAME = LoadEps
+OBJS = $(NAME).obj
+
+LINK_FLAG = /subsystem:windows /nologo
+ML_FLAG = /c /coff  /nologo
+
+$(NAME).exe: $(OBJS)
+	Link $(LINK_FLAG) $(OBJS)
+.asm.obj:
+	ml $(ML_FLAG) $<
+
+clean:
+	del *.obj

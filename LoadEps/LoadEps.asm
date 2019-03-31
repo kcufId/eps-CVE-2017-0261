@@ -1,0 +1,137 @@
+		.386
+		.model	flat, stdcall
+		option	casemap	:none
+
+include		windows.inc
+include		user32.inc
+includelib	user32.lib
+include		kernel32.inc
+includelib	kernel32.lib
+
+include		Macro.inc
+
+include		D:\masm32\macros\Strings.mac
+
+		.data
+hDll		dd	0
+dbArg		db	00, 00, 'e', 'p', 's', 00, 00, 00, \
+			'i', 'm', 'a', 'a', 'g', 'e', '.', \
+			'e', 'p', 's', 00
+
+ImportGr	dd	0
+;szTest		db	256 dup (0)
+		.const
+szEpsDll	db	"EPSIMP32.FLT", 0
+szEps		db	"123.eps", 0
+szEpsconf	db	"eps.conf", 0
+
+szShowOption	db	"ShowOptionsDialog",0
+szYes		db	"Yes",0
+szNo		db	"No",0
+szShowProcess	db	"ShowProgressDialog",0
+szComment	db	"CommentColors",0
+szReportError	db	"ReportNewErrors",0
+		.code
+
+start		proc
+		local	hFile, dwBytesRead
+		local	dwFileSize, lpMemory
+		local	arg2
+
+		;invoke	GetCurrentDirectory, sizeof szTest, offset szTest
+		;读eps配置文件，作为结构传入到epsimp32的模块函数中.
+
+
+		invoke	CreateFile, addr szEpsconf, GENERIC_READ, \
+			FILE_SHARE_READ, 0, OPEN_EXISTING, \
+			FILE_ATTRIBUTE_NORMAL, 0
+		.if	eax == INVALID_HANDLE_VALUE
+			invoke	OutputDebugString, $CTA0("CreateFIle, error")
+			invoke	ExitProcess, NULL
+		.endif
+		mov	hFile, eax
+		invoke	GetFileSize, hFile, NULL
+		.if	eax == INVALID_FILE_SIZE
+			invoke	OutputDebugString, $CTA0("File Zero failed")
+			invoke	ExitProcess, NULL
+		.endif
+		mov	dwFileSize, eax
+
+		invoke	VirtualAlloc, NULL, dwFileSize, MEM_COMMIT, PAGE_READWRITE
+		mov	lpMemory, eax
+		invoke	ReadFile, hFile, lpMemory, dwFileSize, addr dwBytesRead, 0
+		.if	dwBytesRead == 0
+			invoke	OutputDebugString, $CTA0("file 0 size ")
+			invoke	ExitProcess, NULL
+		.endif
+
+		invoke	CloseHandle, hFile
+
+		invoke	LoadLibrary, addr szEpsDll
+		.if	eax == 0
+			invoke	OutputDebugString, $CTA0("load error")
+			invoke	ExitProcess, NULL
+		.endif
+		mov	hDll, eax
+		
+		mov	esi, lpMemory
+		
+		mov	dword ptr [esi+2f4h], eax		;保存模块基址
+
+		invoke	GetProcAddress, hDll, $CTA0("GetFilterInfo")
+		.if	eax == 0
+			invoke	OutputDebugString, $CTA0("GetProcAddress error")
+			invoke	ExitProcess, NULL
+		.endif
+		push	00170000h
+		lea	ecx, [esi+2f0h]
+		push	ecx
+		push	0
+		push	3
+		call	eax
+		mov	dword ptr [esi+2fch], eax
+		.if	eax == 0
+			invoke	OutputDebugString, $CTA0("GetFilterInfo error")
+			invoke	ExitProcess, NULL
+		.endif
+		;;中间会有个判断条件是否RegisterPercentCallback，由于没有，所以忽略。
+		or	dword ptr [esi+8], 800h		;;32E6BF8D    dword ptr [esi+8], 800 没什么用
+
+		invoke	GetProcAddress, hDll, $CTA0("SetFilterPref")
+		.if	eax == 0
+			invoke	OutputDebugString, $CTA0("Get SetFilterPref error")
+			invoke	ExitProcess, NULL
+		.endif	
+		mov	ebx, eax
+		invoke	GetProcAddress, hDll, $CTA0("ImportGr")
+		.if	eax == 0
+			invoke	OutputDebugString, $CTA0("Get ImportGr error")
+			invoke	ExitProcess, NULL
+		.endif
+		mov	ImportGr, eax
+		_invoke	ebx, dword ptr [esi+2f0h], offset szShowOption, offset szNo, 2, 1
+		_invoke	ebx, dword ptr [esi+2f0h], offset szShowProcess, offset szNo, 2, 1
+		_invoke	ebx, dword ptr [esi+2f0h], offset szComment, 0, 0, 0
+		_invoke	ebx, dword ptr [esi+2f0h], offset szReportError, 0, 0, 0
+		;;有个注册回调函数EPSCallbacks，内嵌在mso模块中，不注册了。
+		invoke	GetDC, NULL
+		mov	ebx, eax
+		mov	arg2, 24h
+		;_invoke	ImportGr, ebx, offset dbArg, addr arg2, dword ptr [esi+2f0h]
+		push	dword ptr [esi+2f0h]
+		lea	eax,  arg2
+		push	eax
+		push	offset dbArg
+		push	ebx
+		call	ImportGr
+
+		
+		invoke	ReleaseDC, NULL, ebx
+
+		invoke	VirtualFree, lpMemory, 0, MEM_RELEASE
+		invoke	FreeLibrary, hDll
+		
+		invoke	ExitProcess, NULL
+
+start		endp		
+		end	start

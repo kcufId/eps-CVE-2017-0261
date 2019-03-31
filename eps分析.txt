@@ -1,0 +1,49 @@
+CVE-2015-2545
+在forall时，压入操作堆栈时，压入一对key-values，同时会保存下一个指向dict的指针：0x0766EF48(值不定)
+这个指针，指向的dict在之后会被free，这样就成为野指针。
+这个指针被保存在堆栈上。
+
+
+
+
+野指针：082BF788
+        
+
+003B92B8  一个类基址。
++0xE4 得到当前操作堆栈的结构：+0x0 指向操作堆栈，对象结构数据；+0x4，操作堆栈上对象数目;
+
+初始化字符串时：  [整数] string
+申请一个大小0x30的结构：
++0x0  dword  free_proc   
++0x4  dword  ptr_basearray   //当前结构在指针数组中的位置；            
++0x8  dword              
++0xc  dword                byte 会自动对齐
++0x10 dword              
++0x14 dword   初始化1  难道是true？           
++0x18 dword 
++0x1c dword              
++0x20 dword   p_base_class   
++0x24 dword   pp_struct       保存的为指向0x28结构的指针的指针。     
++0x28 dword		      //保存的索引地址 
++0x2c dword   size            //字符串数组大小
+
+申请大小0x28的new:         有意思的是，调试时，申请到的地址，竟然是之前free掉的dict结构。
++0x0  dword   free_proc
++0x4  dword   ptr_basearray	//即这个地址保存着当前0x28结构在指针数组中的位置，不是索引是地址；
++0x8  dword			// 索引地址。
++0xc  dword
++0x10 dword
++0x14 dword    
++0x18 dword              //指向一个结构，基类地址+0x0B8的值。此值结构中也会包含有当前的0x28结构地址；
++0x1c dword
++0x20 dword  ptr_object //指向下面申请的内存；
++0x24 dword  size       //申请的内存大小，字符串数组大小+1
+
+
+使用上面的size 字符串数组大小+1 申请内存new  这次申请到的地址，也是之前释放的dict结构指针。
+这个结构保存的为实际数据。
+
+
+代码会把上面0x28的结构写入到数组堆栈中：
+首先从0x003BBB98(这个地址从基类得到+0xB4)作为基址，+0x10得到数组堆栈的基址，这个基址+0x10 末端索引，+0x8结构指针开始，把上面0x28结构指针填写到末端上。
+
